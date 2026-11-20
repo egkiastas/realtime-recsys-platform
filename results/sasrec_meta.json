@@ -1,0 +1,39 @@
+{
+  "device": "mps",
+  "epochs": [
+    {
+      "epoch": 0,
+      "loss": 7.000321740850377,
+      "seconds": 163
+    },
+    {
+      "epoch": 1,
+      "loss": 6.074541491045392,
+      "seconds": 192
+    },
+    {
+      "epoch": 2,
+      "loss": 5.5036726373262255,
+      "seconds": 276
+    },
+    {
+      "epoch": 3,
+      "loss": 5.210356462292555,
+      "seconds": 216
+    },
+    {
+      "epoch": 4,
+      "loss": 5.014976050531256,
+      "seconds": 202
+    },
+    {
+      "epoch": 5,
+      "loss": 4.881605216510544,
+      "seconds": 206
+    }
+  ],
+  "maxlen": 200,
+  "dim": 64,
+  "blocks": 2,
+  "vocab": 351352
+}

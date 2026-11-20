@@ -1,0 +1,7 @@
+1. baseline traffic -> reference window
+2. more normal traffic
+normal: drift share 0.00, drifted features {}
+3. injecting skip-heavy sessions
+after injection: drift share 0.46, drifted features {'listens_30m': 2.12, 'skips_30m': 2.67, 'skip_rate_30m': 1.49, 'organic_share_30m': 0.93, 'session_length': 0.52, 'n_recent': 0.18}
+4. waiting for the alert
+FeatureDrift is FIRING: 46.15% of served features drifted from the reference window

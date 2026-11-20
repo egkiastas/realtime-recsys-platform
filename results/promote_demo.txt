@@ -1,0 +1,11 @@
+$ python scripts/promote.py status
+aliases: {'champion': '1', 'challenger': '2', 'previous': None}
+real 8.40
+$ python scripts/promote.py promote
+aliases: {'champion': '2', 'challenger': None, 'previous': '1'}
+api reloaded: {'champion': 'v2'}
+real 8.04
+$ python scripts/promote.py rollback
+aliases: {'champion': '1', 'challenger': '2', 'previous': None}
+api reloaded: {'champion': 'v1', 'challenger': 'v2'}
+real 8.31
