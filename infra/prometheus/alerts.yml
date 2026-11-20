@@ -1,0 +1,26 @@
+groups:
+  - name: recsys
+    rules:
+      - alert: FeatureDrift
+        expr: max(recsys_feature_drift_share) > 0.3
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of served features drifted from the reference window"
+      - alert: HighFallbackRate
+        expr: sum(rate(recsys_fallback_total[1m])) / sum(rate(recsys_requests_total[1m])) > 0.05
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: "More than 5% of requests are served from the popularity fallback"
+      - alert: LatencyBudgetExceeded
+        expr: histogram_quantile(0.99, sum(rate(recsys_request_seconds_bucket[1m])) by (le)) > 0.05
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "p99 handler latency above the 50 ms budget"
+      - alert: StaleFeatures
+        expr: histogram_quantile(0.95, sum(rate(stream_event_lag_seconds_bucket[1m])) by (le)) > 5
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "Session features reach Redis more than 5 s after the event"
