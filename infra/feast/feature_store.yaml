@@ -1,0 +1,15 @@
+# Paths and the Redis address come from the environment (see recsys/store.py for defaults),
+# so the same file works on the host and inside the containers.
+project: recsys
+provider: local
+registry:
+  path: ${FEAST_REGISTRY}
+  # Load once: definitions only change on deploy. The default (600 s) re-reads the registry
+  # synchronously inside whichever request comes after the TTL expires.
+  cache_ttl_seconds: 0
+online_store:
+  type: redis
+  connection_string: ${REDIS_CONNECTION}
+offline_store:
+  type: file
+entity_key_serialization_version: 3
