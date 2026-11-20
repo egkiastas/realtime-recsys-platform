@@ -10,6 +10,7 @@ API; the numbers are a laptop-under-load measurement, not a capacity claim.
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -35,6 +36,7 @@ def run_k6(qps: int, duration: str, workdir: Path, smoke: bool) -> dict:
     out = workdir / f"summary_{qps}.json"
     cmd = [
         "docker", "run", "--rm", "--network", "recsys_default",
+        "--user", f"{os.getuid()}:{os.getgid()}",  # so k6 can write into the bind mount on Linux
         "-v", f"{workdir}:/out", "-v", f"{ROOT / 'scripts' / 'loadtest.js'}:/scripts/loadtest.js:ro",
         "-e", f"QPS={qps}", "-e", f"DURATION={duration}", "-e", f"OUT=/out/{out.name}",
         "-w", "/out", K6_IMAGE, "run", "--quiet", "/scripts/loadtest.js",
