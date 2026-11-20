@@ -1,0 +1,138 @@
+name: recsys
+
+# Local stack. Host ports avoid the defaults (6380, 5002) so it can run next to other projects.
+# Memory limits add up to ~6 GB; actual use under load is lower (see README).
+
+x-data: &data
+  - ../data/processed:/data:ro
+  - feast-registry:/feast
+
+x-feast-env: &feast-env
+  FEAST_REGISTRY: /feast/registry.db
+  REDIS_CONNECTION: redis:6379
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v26.2.7
+    command:
+      - redpanda start --mode dev-container --smp 1 --memory 512M --reserve-memory 0M --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports: ["19092:19092"]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      retries: 30
+
+  redis:
+    image: redis:8.8.4-alpine
+    command: redis-server --save "" --appendonly no
+    ports: ["6380:6379"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.18.0
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts --serve-artifacts
+      --allowed-hosts "*" --workers 1
+    environment:
+      # MLflow 3 otherwise starts ~6 background job workers (GenAI features) at ~230 MB each
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
+    ports: ["5002:5000"]
+    volumes: [mlflow-data:/mlflow]
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      retries: 30
+
+  # One-shot job: register Feast definitions and load the latest user snapshot into Redis.
+  feast:
+    image: recsys-stream
+    build: { context: .., dockerfile: services/stream/Dockerfile }
+    command: python -m recsys.store init --data-dir /data
+    environment: *feast-env
+    volumes: *data
+    depends_on:
+      redis: { condition: service_healthy }
+
+  stream:
+    image: recsys-stream
+    build: { context: .., dockerfile: services/stream/Dockerfile }
+    environment:
+      <<: *feast-env
+      KAFKA_BOOTSTRAP: redpanda:9092
+    volumes: *data
+    ports: ["8001:8000"]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; assert b'stream_events_total' in urllib.request.urlopen('http://localhost:8000').read()"]
+      interval: 5s
+      retries: 60
+    depends_on:
+      feast: { condition: service_completed_successfully }
+      redpanda: { condition: service_healthy }
+
+  replayer:
+    build: { context: .., dockerfile: services/replayer/Dockerfile }
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      SPEED: ${REPLAY_SPEED:-60}
+    volumes: *data
+    ports: ["8002:8000"]
+    mem_limit: 512m
+    depends_on:
+      stream: { condition: service_healthy }
+
+  api:
+    build: { context: .., dockerfile: services/api/Dockerfile }
+    environment:
+      <<: *feast-env
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      SHADOW_RATE: ${SHADOW_RATE:-}  # empty -> config.toml
+      MLFLOW_ENABLE_ARTIFACTS_PROGRESS_BAR: "false"
+    command: ["uvicorn", "services.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "warning", "--workers", "${API_WORKERS:-1}"]
+    volumes: [feast-registry:/feast]
+    ports: ["8000:8000"]
+    mem_limit: 2500m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      retries: 60
+    depends_on:
+      feast: { condition: service_completed_successfully }
+      mlflow: { condition: service_healthy }
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+    ports: ["9090:9090"]
+    mem_limit: 512m
+
+  pushgateway:
+    image: prom/pushgateway:v1.11.5
+    ports: ["9091:9091"]
+    mem_limit: 64m
+
+  grafana:
+    image: grafana/grafana:13.2.6
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    mem_limit: 768m
+
+volumes:
+  feast-registry:
+  mlflow-data:
