@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      # the skew tests also run against Redis, whose write semantics differ from SQLite's
+      redis:
+        image: redis:8.8.4-alpine
+        ports: ["6380:6379"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.23"
+      - run: uv sync --all-extras --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
+  # The whole pipeline on the synthetic fixture: offline training and registration, the full
+  # compose stack with a fast replay, then a short load test with pass/fail thresholds.
+  smoke:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.23"
+      - run: uv sync --all-extras --frozen
+      - run: make fixture
+      - run: docker compose -f infra/docker-compose.yml up -d --wait mlflow redis redpanda
+      - run: make offline
+      - run: docker compose -f infra/docker-compose.yml up -d --build
+        env:
+          REPLAY_SPEED: "3600"
+      - run: timeout 300 sh -c 'until curl -sf localhost:8000/health; do sleep 3; done'
+      - run: uv run python scripts/loadtest.py --smoke
+      - name: compose logs
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml logs --tail 100
