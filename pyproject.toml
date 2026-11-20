@@ -1,0 +1,86 @@
+[project]
+name = "realtime-recsys"
+version = "0.1.0"
+description = "Real-time music recommendations on Yandex Yambda: retrieval, ranking, re-ranking, streaming features."
+authors = [{ name = "Vangelis Gkiastas" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.optional-dependencies]
+# one extra per container image, plus the offline training stack
+api = [
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "pyarrow>=18",
+    "polars>=1.20",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "prometheus-client>=0.21",
+    "redis>=5",
+    "feast[redis]>=0.50",
+    "mlflow-skinny>=3.0",
+    "lightgbm>=4.5",
+    "faiss-cpu>=1.9",
+]
+stream = [
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "pyarrow>=18",
+    "polars>=1.20",
+    "feast[redis]>=0.50",
+    "confluent-kafka>=2.6",
+    "prometheus-client>=0.21",
+]
+replayer = [
+    "pyarrow>=18",
+    "confluent-kafka>=2.6",
+    "prometheus-client>=0.21",
+]
+train = [
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "pyarrow>=18",
+    "polars>=1.20",
+    "torch>=2.5",
+    "mlflow>=3.0",
+    "lightgbm>=4.5",
+    "faiss-cpu>=1.9",
+    "feast[redis]>=0.50",
+    "evidently>=0.7",
+    "huggingface-hub>=0.30",
+    "matplotlib>=3.9",
+    "redis>=5",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.8", "pytest>=8", "httpx>=0.28"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["recsys"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E402", "E501"]  # the formatter owns line length
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+# CI runs on Linux; the default torch wheel there pulls ~2.5 GB of CUDA libraries.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

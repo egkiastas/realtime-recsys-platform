@@ -1,0 +1,61 @@
+# Single config for offline training and the services. Timestamps are Yambda seconds
+# (binned to 5 s); the split mirrors the dataset's global temporal split.
+
+[paths]
+raw_dir = "data/raw"
+processed_dir = "data/processed"
+artifacts_dir = "artifacts"
+results_dir = "results"
+
+[split]
+last_ts = 26_000_000
+day = 86_400
+gap = 1_800
+
+[eval]
+requests_per_user = 3
+label_window = 3_600     # positives = items played >= 50% in the hour after the request
+positive_ratio = 50
+seed = 42
+
+[features]
+last_n = 50              # recent items kept per user; also the "recently played" filter
+session_window = 1_800
+skip_ratio = 50          # played_ratio_pct below this counts as a skip
+history_days = 14        # how far back the online state is bootstrapped
+
+[candidates]
+pop_days = 7
+pop_n = 300
+cooc_window = 3
+cooc_topk = 30
+cooc_seeds = 10
+cooc_n = 200
+tt_n = 200
+fresh_days = 7          # items first seen this recently (or never) form the cold-start pool
+fresh_n = 30
+nprobe = 128            # IVF lists probed; ~0.94 recall@200 vs exact search at ~0.5 ms
+
+[two_tower]
+dim = 64
+hist_len = 50
+min_item_count = 5
+epochs = 3
+batch_size = 2048
+lr = 0.002
+temperature = 0.05
+id_dropout = 0.3
+
+[ranker]
+num_leaves = 63
+learning_rate = 0.05
+n_estimators = 400
+min_data_in_leaf = 50
+
+[rerank]
+mmr_lambda = 0.8
+pool = 100
+
+[serve]
+feature_timeout_ms = 25
+shadow_rate = 0.25       # share of requests the challenger also scores (it doubles their CPU cost)

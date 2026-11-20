@@ -1,0 +1,11 @@
+data/
+artifacts/
+mlruns/
+*.db
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+var/
+results/*.parquet
